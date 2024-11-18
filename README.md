@@ -1,2 +1,1 @@
-# INS-internship
-Coefficient perturbations in diffusion equations
+# Coefficient perturbations in diffusion equations
