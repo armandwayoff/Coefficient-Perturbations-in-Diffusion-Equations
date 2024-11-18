@@ -1,0 +1,165 @@
+/*********************************************************************
+ author: Martin Vohralik
+ *********************************************************************/
+
+verbosity = 1;			// FreeFem++ verbosity
+
+include "ffmatlib.idp"
+
+macro PP P1 //
+macro Pcb P0 //
+
+bool PlotSolAppr = 1, PlotErr = 0; // what to plot
+bool Err = 0; // what to compute 
+
+// 9, 27, 81, 243
+int nds = 27; // number of mesh points on one domain unity edge
+int ncb = 1; // size of the checkboard coefficient (odd)
+int cbsize = (ncb - 1) / 2;
+int cbdensity = 2;
+
+// bool RHSlocal = 1;
+
+/*
+real sigma = 0.2;
+real amp = 10;
+func f = amp*exp(-((x-0.5)/sigma)^2 - ((y-0.5)/sigma)^2);
+*/
+
+func gd = 0;  // boundary condition gd
+
+// func acoeff = sin(10*x)*sin(10*y); // Example coefficient a(x,y)
+mesh Thcb = square(ncb, ncb);
+fespace Vhcb(Thcb, Pcb);
+
+real amax = 10.0, amin = 1.0, apertub = 1.0;
+real fmax = 1.0, fmin = 0.0;
+
+int len = 1; // cbsize;
+int numpert = len;
+// real[int] xpert = [1, 2, 3, 4, 5]; // [(cbsize + 1) / 2]; //, (cbsize + 1) / 4, (cbsize + 1) / 8, 12];
+// real[int] ypert = [3, 3, 3, 3, 3]; // [(cbsize + 1) / 2]; //, (cbsize + 1) / 4, (cbsize + 1) / 8, 10];
+
+real[int] xpert(numpert);
+real[int] ypert(numpert);
+
+for (int i = 0; i < numpert; i++) {
+    xpert[i] = i + (cbsize + 1) / 2 - (len - 1) / 2;
+    ypert[i] = (cbsize + 1) / 2;
+}
+
+real[int] xf1 = [(cbsize + 1) / 2];
+real[int] yf1 = [(cbsize + 1) / 2];
+
+real[int] xf2 = [1];
+real[int] yf2 = [1];
+
+
+Vhcb acoeff, acoeffp, f1, f2, f3;
+
+for (int i = 0; i < Thcb.nt; i++) {
+    real xc = Thcb[i][0].x; // x-coordinate of the element center
+    real yc = Thcb[i][0].y; // y-coordinate of the element center
+
+    int ix = floor(xc * ncb); // x-index of the grid cell
+    int iy = floor(yc * ncb); // y-index of the grid cell
+
+    // Construction of the "perfect" coefficient acoeff (cherckerboard pattern) and of the "perturbed" coefficient acoeffp
+    // if ((ix + 1) % cbdensity == 0 && (iy + 1) % cbdensity == 0) {
+    if ((ix > 0 && iy > 0) && (ix < ncb - 1 && iy < ncb - 1) && ((ix + 1) % cbdensity == 1 && (iy + 1) % cbdensity == 1 || (ix + 1) % cbdensity == 0 && (iy + 1) % cbdensity == 0)) {
+        acoeff[][i] = amax;
+        for (int j = 0; j < numpert; j++) {
+            if (ix == (2 * xpert[j] - 1) && iy == (2 * ypert[j] - 1) && i < Thcb.nt - 1) {
+                acoeffp[][i] = apertub;
+                acoeffp[][i+1] = apertub;
+            } else if(acoeffp[][i] != apertub) {
+                acoeffp[][i] = amax;
+            }
+        }
+    } else {
+        acoeff[][i] = amin;
+        acoeffp[][i] = amin;
+    }
+
+    // Construction of the source term f (RHS)
+    for (int j = 0; j < xf1.n; j++) {
+        if (ix == (2 * xf1[j] - 1) && iy == (2 * yf1[j] - 1)) {
+            f1[][i] = fmax;
+        } else if(f1[][i] != fmax) {
+            f1[][i] = fmin;
+        }
+    }
+    for (int j = 0; j < xf2.n; j++) {
+        if (ix == (2 * xf2[j] - 1) && iy == (2 * yf2[j] - 1)) {
+            f2[][i] = fmax;
+        } else if(f2[][i] != fmax) {
+            f2[][i] = fmin;
+        }
+    }
+
+    f3[][i] = fmax;
+}
+
+// Define the computational mesh 
+mesh Th = square(nds,nds); // generate a triangular mesh of a square domain with nds+1 points per edge
+int trdet1=0, trdet2=3; // triangle numbers for detailed plots if nds = 5
+
+//**************************************
+//   USEFUL SETTINGS
+//**************************************
+
+// macro definitions
+macro Div(u1,u2) (dx(u1)+dy(u2)) //
+macro Grad(u) [dx(u),dy(u)] //
+
+macro NbIso 21 // number of isovalues for plotting (more than 20 unless FreeFem++ bug fixed)
+macro SolverGlob sparsesolver // global system linear solver: CG or sparsesolver 
+
+real em = 0.99, ep = 1.01; // under- and over-shoot for correct visualisation
+real sp = 0.11; // extension of the colormap for correct visualisation of the nonconforming finite element approximation
+
+// standard matlab jet colormap
+real[int] jet = [0.6667, 1.0000, 0.5625,  0.6667, 1.0000, 0.6250,  0.6667, 1.0000, 0.6875,  0.6667, 1.0000, 0.7500,  0.6667, 1.0000, 0.8125, 0.6667, 1.0000, 0.8750,
+ 0.6667, 1.0000, 0.9375, 0.6667, 1.0000, 1.0000, 0.6563, 1.0000, 1.0000, 0.6458, 1.0000, 1.0000, 0.6354, 1.0000, 1.0000, 0.6250, 1.0000, 1.0000, 0.6146, 1.0000, 1.0000,
+ 0.6042, 1.0000, 1.0000, 0.5938, 1.0000, 1.0000, 0.5833, 1.0000, 1.0000, 0.5729, 1.0000, 1.0000, 0.5625, 1.0000, 1.0000, 0.5521, 1.0000, 1.0000, 0.5417, 1.0000, 1.0000,
+ 0.5313, 1.0000, 1.0000, 0.5208, 1.0000, 1.0000, 0.5104, 1.0000, 1.0000, 0.5000, 1.0000, 1.0000, 0.4889, 0.9375, 1.0000, 0.4762, 0.8750, 1.0000, 0.4615, 0.8125, 1.0000,
+ 0.4444, 0.7500, 1.0000, 0.4242, 0.6875, 1.0000, 0.4000, 0.6250, 1.0000, 0.3704, 0.5625, 1.0000, 0.3333, 0.5000, 1.0000, 0.2963, 0.5625, 1.0000, 0.2667, 0.6250, 1.0000,
+ 0.2424, 0.6875, 1.0000, 0.2222, 0.7500, 1.0000, 0.2051, 0.8125, 1.0000, 0.1905, 0.8750, 1.0000, 0.1778, 0.9375, 1.0000, 0.1667, 1.0000, 1.0000, 0.1563, 1.0000, 1.0000,
+ 0.1458, 1.0000, 1.0000, 0.1354, 1.0000, 1.0000, 0.1250, 1.0000, 1.0000, 0.1146, 1.0000, 1.0000, 0.1042, 1.0000, 1.0000, 0.0938, 1.0000, 1.0000, 0.0833, 1.0000, 1.0000,
+ 0.0729, 1.0000, 1.0000, 0.0625, 1.0000, 1.0000, 0.0521, 1.0000, 1.0000, 0.0417, 1.0000, 1.0000, 0.0313, 1.0000, 1.0000, 0.0208, 1.0000, 1.0000, 0.0104, 1.0000, 1.0000,
+ 0, 1.0000, 1.0000, 0, 1.0000, 0.9375, 0, 1.0000, 0.8750, 0, 1.0000, 0.8125, 0, 1.0000, 0.7500, 0, 1.0000, 0.6875, 0, 1.0000, 0.6250, 0, 1.0000, 0.5625, 0, 1.0000, 0.5000]; 
+
+
+if(PlotSolAppr) {
+    plot(Th, wait=1, cmm="Square domain & Mesh");
+
+    Vhcb apvis=acoeffp; 
+    real[int]isovaluesapcoeff=em*apvis[].min:(ep*apvis[].max-em*apvis[].min)/(NbIso-1):ep*apvis[].max;
+    plot(Th, apvis, wait=1, value=1, fill=1, viso=isovaluesapcoeff, hsv=jet, cmm="Perturbed coefficient", dim=2, boundary=false);
+
+    Vhcb f1vis=f1; 
+    real[int]isovaluesf1=em*f1vis[].min:(ep*f1vis[].max-em*f1vis[].min)/(NbIso-1):ep*f1vis[].max;
+    plot(Th, f1vis, wait=1, value=1, fill=1, viso=isovaluesf1, hsv=jet, cmm="RHS1", dim=2, boundary=false);
+
+    Vhcb f2vis=f2; 
+    real[int]isovaluesf2=em*f2vis[].min:(ep*f2vis[].max-em*f2vis[].min)/(NbIso-1):ep*f2vis[].max;
+    plot(Th, f2vis, wait=1, value=1, fill=1, viso=isovaluesf2, hsv=jet, cmm="RHS2", dim=2, boundary=false);
+
+    Vhcb f3vis=f3; 
+    real[int]isovaluesf3=em*f3vis[].min:(ep*f3vis[].max-em*f3vis[].min)/(NbIso-1):ep*f3vis[].max;
+    plot(Th, f3vis, wait=1, value=1, fill=1, viso=isovaluesf3, hsv=jet, cmm="RHS3", dim=2, boundary=false);
+}
+
+
+//Save mesh
+// savemesh(Th,"data/meshTh.msh");
+savemesh(Thcb,"data/meshThcb.msh");
+//Save finite element space connectivity
+// ffSaveVh(Th,VhNC,"data/mesh_vh.txt");
+ffSaveVh(Thcb,Vhcb,"data/mesh_vhcb.txt");
+//Save scalar data
+ffSaveData(acoeffp,"data/perturbed_coeff.txt");
+ffSaveData(f1,"data/rhs1.txt");
+ffSaveData(f2,"data/rhs2.txt");
+ffSaveData(f3,"data/rhs3.txt");
+

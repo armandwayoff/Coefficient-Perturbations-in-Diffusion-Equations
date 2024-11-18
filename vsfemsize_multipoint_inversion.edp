@@ -1,0 +1,282 @@
+verbosity = 0;	
+
+include "ffmatlib.idp"
+load "ffrandom"
+load "lapack"
+
+srandomdev();
+srandom(1234);
+
+real maxrang = 2^31 - 1;
+// random() / maxrang < p
+
+macro PP P1 //
+macro Pcb P0 //
+
+bool PlotSolAppr = 0, PlotErr = 0; // what to plot
+bool Err = 1; // what to compute 
+
+real ncb = 27; // size of the checkboard coefficient (odd)
+int cbsize = (ncb - 1) / 2;
+int cbdensity = 2;
+
+real alpha = 1.;
+real beta = 0.;
+real p = 0.98;
+
+mesh Thcb = square(ncb, ncb);
+fespace Vhcb(Thcb, Pcb);
+
+real amax = 1000.0, amin = 1;
+
+Vhcb acoeff, acoeffp;
+
+real[int] randomcoeff(Thcb.nt); 
+
+real[int] randomcoeffx(ncb*ncb); 
+real[int] randomcoeffy(ncb*ncb);
+
+int defectscounter = 0; 
+
+for (int ix = 0; ix < ncb; ix++) {
+    for (int iy = 0; iy < ncb; iy++) {
+        // if ((ix + 1) % cbdensity == 0 && (iy + 1) % cbdensity == 0) {
+        if ((ix > 0 && iy > 0) && (ix < ncb - 1 && iy < ncb - 1) && ((ix + 1) % cbdensity == 1 && (iy + 1) % cbdensity == 1 || (ix + 1) % cbdensity == 0 && (iy + 1) % cbdensity == 0)) {
+            int r = (random() / maxrang < p);
+            if (r == 0) {
+                randomcoeffx[defectscounter] = ix;
+                randomcoeffy[defectscounter] = iy;
+                defectscounter++;
+            }
+            // cout<<"r : "<<r<<endl;
+            for (int i = 0; i < Thcb.nt; i++) {
+                real xc = Thcb[i][0].x; 
+                real yc = Thcb[i][0].y; 
+                if (floor(xc * ncb) == ix && floor(yc * ncb) == iy) {
+                    randomcoeff[i] = r;
+                    // cout<<"i : "<<i<<", "<<r<<endl;
+                }                
+            }
+        }
+    }
+}
+cout<<"Number of defects : "<<defectscounter<<endl;
+
+cout<<"Number of triangles : "<<Thcb.nt<<defectscounter<<endl;
+
+for (int i = 0; i < Thcb.nt; i++) {
+    real xc = Thcb[i][0].x; // x-coordinate of the element center
+    real yc = Thcb[i][0].y; // y-coordinate of the element center
+
+    int ix = floor(xc * ncb); // x-index of the grid cell
+    int iy = floor(yc * ncb); // y-index of the grid cell
+
+    // Construction of the "perfect" coefficient acoeff (cherckerboard pattern) and of the "perturbed" coefficient acoeffp
+    // if ((ix + 1) % cbdensity == 0 && (iy + 1) % cbdensity == 0) {
+    if ((ix > 0 && iy > 0) && (ix < ncb - 1 && iy < ncb - 1) && ((ix + 1) % cbdensity == 1 && (iy + 1) % cbdensity == 1 || (ix + 1) % cbdensity == 0 && (iy + 1) % cbdensity == 0)) {
+        if (randomcoeff[i] == 1) {
+            acoeffp[][i] = amax;
+        } else {
+            acoeffp[][i] = amin;
+        }
+        acoeff[][i] = amax;
+    } else {
+        acoeffp[][i] = amin;
+        acoeff[][i] = amin;
+    }
+}
+
+Vhcb[int] offlincoeff(defectscounter); 
+Vhcb aminfun = amin;
+
+for (int ndefects = 0; ndefects < defectscounter; ndefects++) {
+    for (int i = 0; i < Thcb.nt; i++) {
+        real xc = Thcb[i][0].x; 
+        real yc = Thcb[i][0].y; 
+
+        int ix = floor(xc * ncb); 
+        int iy = floor(yc * ncb);
+
+        if (ix == randomcoeffx[ndefects] && iy == randomcoeffy[ndefects]) {
+            offlincoeff[ndefects][][i] = amax;
+        } else {
+            offlincoeff[ndefects][][i] = amin;
+        }
+    }
+    // Comment the following line to compute the perturbations
+    offlincoeff[ndefects] = acoeff - offlincoeff[ndefects] + aminfun;
+}
+
+cout<<"Building of the offline coefficients completed"<<endl;
+
+//**************************************
+//   USEFUL SETTINGS
+//**************************************
+
+// macro definitions
+macro Div(u1,u2) (dx(u1)+dy(u2)) //
+macro Grad(u) [dx(u),dy(u)] //
+
+macro NbIso 21 // number of isovalues for plotting (more than 20 unless FreeFem++ bug fixed)
+macro SolverGlob sparsesolver // global system linear solver: CG or sparsesolver 
+
+real em = 0.99, ep = 1.01; // under- and over-shoot for correct visualisation
+real sp = 0.11; // extension of the colormap for correct visualisation of the nonconforming finite element approximation
+
+// standard matlab jet colormap
+real[int] jet = [0.6667, 1.0000, 0.5625,  0.6667, 1.0000, 0.6250,  0.6667, 1.0000, 0.6875,  0.6667, 1.0000, 0.7500,  0.6667, 1.0000, 0.8125, 0.6667, 1.0000, 0.8750,
+ 0.6667, 1.0000, 0.9375, 0.6667, 1.0000, 1.0000, 0.6563, 1.0000, 1.0000, 0.6458, 1.0000, 1.0000, 0.6354, 1.0000, 1.0000, 0.6250, 1.0000, 1.0000, 0.6146, 1.0000, 1.0000,
+ 0.6042, 1.0000, 1.0000, 0.5938, 1.0000, 1.0000, 0.5833, 1.0000, 1.0000, 0.5729, 1.0000, 1.0000, 0.5625, 1.0000, 1.0000, 0.5521, 1.0000, 1.0000, 0.5417, 1.0000, 1.0000,
+ 0.5313, 1.0000, 1.0000, 0.5208, 1.0000, 1.0000, 0.5104, 1.0000, 1.0000, 0.5000, 1.0000, 1.0000, 0.4889, 0.9375, 1.0000, 0.4762, 0.8750, 1.0000, 0.4615, 0.8125, 1.0000,
+ 0.4444, 0.7500, 1.0000, 0.4242, 0.6875, 1.0000, 0.4000, 0.6250, 1.0000, 0.3704, 0.5625, 1.0000, 0.3333, 0.5000, 1.0000, 0.2963, 0.5625, 1.0000, 0.2667, 0.6250, 1.0000,
+ 0.2424, 0.6875, 1.0000, 0.2222, 0.7500, 1.0000, 0.2051, 0.8125, 1.0000, 0.1905, 0.8750, 1.0000, 0.1778, 0.9375, 1.0000, 0.1667, 1.0000, 1.0000, 0.1563, 1.0000, 1.0000,
+ 0.1458, 1.0000, 1.0000, 0.1354, 1.0000, 1.0000, 0.1250, 1.0000, 1.0000, 0.1146, 1.0000, 1.0000, 0.1042, 1.0000, 1.0000, 0.0938, 1.0000, 1.0000, 0.0833, 1.0000, 1.0000,
+ 0.0729, 1.0000, 1.0000, 0.0625, 1.0000, 1.0000, 0.0521, 1.0000, 1.0000, 0.0417, 1.0000, 1.0000, 0.0313, 1.0000, 1.0000, 0.0208, 1.0000, 1.0000, 0.0104, 1.0000, 1.0000,
+ 0, 1.0000, 1.0000, 0, 1.0000, 0.9375, 0, 1.0000, 0.8750, 0, 1.0000, 0.8125, 0, 1.0000, 0.7500, 0, 1.0000, 0.6875, 0, 1.0000, 0.6250, 0, 1.0000, 0.5625, 0, 1.0000, 0.5000]; 
+
+//**************************************
+// CODE
+//**************************************
+for (int k = 70; k < 251; k+=1) { // ndslist.n 
+    // int nds = ndslist[k];
+    int nds = k;
+
+    mesh Th = square(nds,nds); // generate a triangular mesh of a square domain with nds+1 points per edge
+    fespace VhNC(Th,PP); 
+    VhNC f = 1;
+    func gd = 0; 
+    matrix Atilde;
+    VhNC[int] uhoff(defectscounter);
+
+    for (int ndefects = 0; ndefects < defectscounter; ndefects++) {
+        Vhcb off = offlincoeff[ndefects];
+        VhNC uhp,vhp; 
+        varf aoff(uhp,vhp)=int2d(Th)(off*Grad(uhp)'*Grad(vhp)) 
+                + int2d(Th)(f*vhp) 
+                + on(1,2,3,4,uhp=gd);
+        matrix Aoff=aoff(VhNC,VhNC,solver=SolverGlob);
+        real[int] boff=aoff(0,VhNC); 
+        // uhoff[]=Aoff^-1*boff; 
+        uhoff[ndefects][] = Aoff^-1*boff;
+
+        /*
+        int n = ndefects + 1;
+        string filename = "data/stiffoffline" + n + ".txt";
+        cout<<"Problem "<<ndefects<<" solved, Size of the stiffness matrix = "<<Aoff.n<<endl;
+        ffSaveMatrix(Aoff, filename);
+        cout<<"Matrix "<<ndefects<<" saved"<<endl;
+        cout<<"ndefects = "<<ndefects<<" / "<<defectscounter<<endl;
+        */
+    }
+
+    VhNC uh0,vh; 
+    varf a(uh0,vh)=int2d(Th)(acoeff*Grad(uh0)'*Grad(vh)) 
+                + int2d(Th)(f*vh) 
+                + on(1,2,3,4,uh0=gd);
+    matrix A0=a(VhNC,VhNC,solver=SolverGlob);
+    real[int] b0=a(0,VhNC); 
+    uh0[]=A0^-1*b0; 
+    /*
+    string filename = "data/stiffoffline0.txt";
+    ffSaveMatrix(A0, filename);
+    */
+
+    VhNC uhp,vhp; 
+    varf ap(uhp,vhp)=int2d(Th)(acoeffp*Grad(uhp)'*Grad(vhp)) 
+                + int2d(Th)(f*vhp) 
+                + on(1,2,3,4,uhp=gd);
+
+    matrix Ap=ap(VhNC,VhNC,solver=SolverGlob);
+    real[int] bp=ap(0,VhNC); 
+    uhp[]=Ap^-1*bp; 
+
+    VhNC reconstructionsol;
+    for (int ndefects = 0; ndefects < defectscounter; ndefects++) {
+        reconstructionsol = reconstructionsol + uhoff[ndefects];
+    }
+    reconstructionsol = reconstructionsol + (1 - defectscounter) * uh0;
+
+
+    if(PlotSolAppr) {
+        plot(Thcb, wait=1, cmm="Square domain & Mesh");
+
+        Vhcb avis=acoeff; 
+        real[int]isovaluesacoeff=em*avis[].min:(ep*avis[].max-em*avis[].min)/(NbIso-1):ep*avis[].max;
+        plot(Thcb, avis, wait=1, value=1, fill=1, viso=isovaluesacoeff, hsv=jet, cmm="Perfect coefficient", dim=2, boundary=false);
+
+        Vhcb apvis=acoeffp; 
+        real[int]isovaluesapcoeff=em*apvis[].min:(ep*apvis[].max-em*apvis[].min)/(NbIso-1):ep*apvis[].max;
+        plot(Thcb, apvis, wait=1, value=1, fill=1, viso=isovaluesapcoeff, hsv=jet, cmm="Perturbed coefficient", dim=2, boundary=false);
+
+        real spanuhp=uhp[].max-uhp[].min;
+        real[int]isovaluesuhp=uhp[].min-spanuhp*sp:((1+2*sp)*spanuhp)/(NbIso-1):uhp[].max+spanuhp*sp;
+        plot(Th, uhp, wait=1, value=1, fill=1, viso=isovaluesuhp, hsv=jet, cmm="Numerical approximation for the perturbed coefficient acoeffp", dim=2, boundary=false);
+
+        for (int ndefects = 0; ndefects < defectscounter; ndefects++) {
+            Vhcb off = offlincoeff[ndefects];
+            string plotname = "Offline coeff n." + ndefects;
+            real[int]isovaluesoff=em*off[].min:(ep*off[].max-em*off[].min)/(NbIso-1):ep*off[].max;
+            plot(Thcb, off, wait=1, value=1, fill=1, viso=isovaluesoff, hsv=jet, cmm=plotname, dim=2, boundary=false);
+
+            VhNC currentuhoff = uhoff[ndefects];
+            string plotnamebis = "Offline solution n." + ndefects;
+            real span=currentuhoff[].max-currentuhoff[].min;
+            real[int]isovaluesuhoff=currentuhoff[].min-span*sp:((1+2*sp)*span)/(NbIso-1):currentuhoff[].max+span*sp;	
+            plot(Th, currentuhoff, wait=1, value=1, fill=1, viso=isovaluesuhoff, hsv=jet, cmm=plotnamebis, dim=2, boundary=false);
+        }
+
+        real spanrecons=reconstructionsol[].max-reconstructionsol[].min;
+        real[int]isovaluesrecons=reconstructionsol[].min-spanrecons*sp:((1+2*sp)*spanrecons)/(NbIso-1):reconstructionsol[].max+spanrecons*sp;
+        plot(Th, reconstructionsol, wait=1, value=1, fill=1, viso=isovaluesrecons, hsv=jet, cmm="Reconstruction", dim=2, boundary=false);
+
+        /*
+        Vhcb reconstruction;
+        for (int ndefects = 0; ndefects < defectscounter; ndefects++) {
+            reconstruction = reconstruction + offlincoeff[ndefects];
+        }
+        reconstruction = reconstruction + (1 - defectscounter) * acoeff;
+        plot(Thcb, reconstruction, wait=1, value=1, fill=1, viso=isovaluesapcoeff, hsv=jet, cmm="Reconstruction", dim=2, boundary=false);
+        */
+    }
+
+    // space of piecewise constants for various plots
+    fespace Wh0(Th,P1); 
+
+    // computing the exact error and its distribution over mesh elements
+    real error;
+    Wh0 ErrDistField;
+
+    func int ErrDist() {
+        varf ErrDistForm(unused,chiK) = int2d(Th)(
+            chiK*(
+                 (Grad(reconstructionsol)-Grad(uhp))'*(Grad(reconstructionsol)-Grad(uhp)) //    ((Grad(uhp))'*(Grad(uhp))) //  
+                )
+            );
+        ErrDistField[]=ErrDistForm(0,Wh0);
+        error=sqrt(ErrDistField[].sum);
+        ErrDistField=sqrt(ErrDistField);
+        if(PlotErr) {
+            real[int]isovalues=0:ErrDistField[].max/(NbIso-1):ErrDistField[].max; // isovalues from minimal to maximal value
+            plot(Th, ErrDistField, wait=1, value=1, fill=1, viso=isovalues, hsv=jet, cmm="Relative energy errors || grad(reconstruction - uhp) ||"); 
+        }
+        // cout<<"relative energy error "<<error<<endl;
+        cout<<nds<<" : "<<error<<endl;
+    }
+
+    if(Err)	ErrDist();
+}
+
+/*
+// Save mesh
+savemesh(Thcb,"data/meshThcb.msh");
+// Save finite element space connectivity
+ffSaveVh(Thcb,Vhcb,"data/mesh_vhcb.txt");
+// Save scalar data
+ffSaveData(acoeff,"data/perfect_coeff.txt");
+ffSaveData(acoeffp,"data/perturbed_coeff.txt");
+for (int ndefects = 0; ndefects < defectscounter; ndefects++) {
+    int n = ndefects + 1;
+    string filename = "data/offlincoeff" + n + ".txt";
+    ffSaveData(offlincoeff[ndefects],filename);
+}
+*/

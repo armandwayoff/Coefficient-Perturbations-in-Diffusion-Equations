@@ -1,0 +1,182 @@
+/*********************************************************************
+ author: Martin Vohralik
+ *********************************************************************/
+
+verbosity = 0;			// FreeFem++ verbosity
+
+include "ffmatlib.idp"
+
+macro PP P1 //
+macro Pcb P0 //
+
+bool PlotSolAppr = 1, PlotErr = 0; // what to plot
+bool Err = 1; // what to compute 
+
+// macro definitions
+macro Div(u1,u2) (dx(u1)+dy(u2)) //
+macro Grad(u) [dx(u),dy(u)] //
+
+macro NbIso 21 // number of isovalues for plotting (more than 20 unless FreeFem++ bug fixed)
+macro SolverGlob sparsesolver // global system linear solver: CG or sparsesolver 
+
+real em = 0.99, ep = 1.01; // under- and over-shoot for correct visualisation
+real sp = 0.11; // extension of the colormap for correct visualisation of the nonconforming finite element approximation
+
+// standard matlab jet colormap
+real[int] jet = [0.6667, 1.0000, 0.5625,  0.6667, 1.0000, 0.6250,  0.6667, 1.0000, 0.6875,  0.6667, 1.0000, 0.7500,  0.6667, 1.0000, 0.8125, 0.6667, 1.0000, 0.8750,
+0.6667, 1.0000, 0.9375, 0.6667, 1.0000, 1.0000, 0.6563, 1.0000, 1.0000, 0.6458, 1.0000, 1.0000, 0.6354, 1.0000, 1.0000, 0.6250, 1.0000, 1.0000, 0.6146, 1.0000, 1.0000,
+0.6042, 1.0000, 1.0000, 0.5938, 1.0000, 1.0000, 0.5833, 1.0000, 1.0000, 0.5729, 1.0000, 1.0000, 0.5625, 1.0000, 1.0000, 0.5521, 1.0000, 1.0000, 0.5417, 1.0000, 1.0000,
+0.5313, 1.0000, 1.0000, 0.5208, 1.0000, 1.0000, 0.5104, 1.0000, 1.0000, 0.5000, 1.0000, 1.0000, 0.4889, 0.9375, 1.0000, 0.4762, 0.8750, 1.0000, 0.4615, 0.8125, 1.0000,
+0.4444, 0.7500, 1.0000, 0.4242, 0.6875, 1.0000, 0.4000, 0.6250, 1.0000, 0.3704, 0.5625, 1.0000, 0.3333, 0.5000, 1.0000, 0.2963, 0.5625, 1.0000, 0.2667, 0.6250, 1.0000,
+0.2424, 0.6875, 1.0000, 0.2222, 0.7500, 1.0000, 0.2051, 0.8125, 1.0000, 0.1905, 0.8750, 1.0000, 0.1778, 0.9375, 1.0000, 0.1667, 1.0000, 1.0000, 0.1563, 1.0000, 1.0000,
+0.1458, 1.0000, 1.0000, 0.1354, 1.0000, 1.0000, 0.1250, 1.0000, 1.0000, 0.1146, 1.0000, 1.0000, 0.1042, 1.0000, 1.0000, 0.0938, 1.0000, 1.0000, 0.0833, 1.0000, 1.0000,
+0.0729, 1.0000, 1.0000, 0.0625, 1.0000, 1.0000, 0.0521, 1.0000, 1.0000, 0.0417, 1.0000, 1.0000, 0.0313, 1.0000, 1.0000, 0.0208, 1.0000, 1.0000, 0.0104, 1.0000, 1.0000,
+0, 1.0000, 1.0000, 0, 1.0000, 0.9375, 0, 1.0000, 0.8750, 0, 1.0000, 0.8125, 0, 1.0000, 0.7500, 0, 1.0000, 0.6875, 0, 1.0000, 0.6250, 0, 1.0000, 0.5625, 0, 1.0000, 0.5000]; 
+
+// real[int] ncblist = [9, 15, 21, 31, 37, 53, 63, 73, 81];
+real[int] ncblist = [9, 15, 21, 25, 31, 37, 41, 53, 63, 73, 81];
+// real[int] ncblist = [9, 11, 13, 15, 17, 19, 21, 25, 27, 29, 31, 33, 35, 37, 41, 53, 57, 59, 61, 63, 65, 73, 81];
+
+
+for (int k = 0; k < ncblist.n; k++) {
+
+    real ncb = ncblist[k]; // size of the checkboard coefficient (odd)
+    int cbsize = (ncb - 1) / 2;
+    int cbdensity = 2;
+
+    func gd = 0;  // boundary condition gd
+
+    mesh Thcb = square(ncb, ncb);
+    fespace Vhcb(Thcb, Pcb);
+
+    real amax = 10.0, amin = 1.0, apertub = 1.0;
+    real fmax = 1.0, fmin = 0.0;
+
+    int len = 1; // cbsize;
+    int numpert = len;
+    // real[int] xpert = [(ncb - cbsize) / 2]; 
+    // real[int] ypert = [(ncb - cbsize) / 2]; 
+    real[int] xpert = [(cbsize + 1) / 2];
+    real[int] ypert = [(cbsize + 1) / 2];
+
+    /*real[int] xpert(numpert);
+    real[int] ypert(numpert);
+
+    for (int i = 0; i < numpert; i++) {
+        xpert[i] = i + (cbsize + 1) / 2 - (len - 1) / 2;
+        ypert[i] = (cbsize + 1) / 2;
+    }*/
+
+    real[int] xf = [(cbsize + 1) / 2];
+    real[int] yf = [(cbsize + 1) / 2];
+
+    Vhcb acoeff, acoeffp, f;
+
+    for (int i = 0; i < Thcb.nt; i++) {
+        real xc = Thcb[i][0].x; // x-coordinate of the element center
+        real yc = Thcb[i][0].y; // y-coordinate of the element center
+
+        int ix = floor(xc * ncb); // x-index of the grid cell
+        int iy = floor(yc * ncb); // y-index of the grid cell
+
+        // Construction of the "perfect" coefficient acoeff (cherckerboard pattern) and of the "perturbed" coefficient acoeffp
+        if ((ix + 1) % cbdensity == 0 && (iy + 1) % cbdensity == 0) {
+        // if ((ix > 0 && iy > 0) && (ix < ncb - 1 && iy < ncb - 1) && ((ix + 1) % cbdensity == 1 && (iy + 1) % cbdensity == 1 || (ix + 1) % cbdensity == 0 && (iy + 1) % cbdensity == 0)) {
+            acoeff[][i] = amax;
+            for (int j = 0; j < numpert; j++) {
+                if (ix == (2 * xpert[j] - 1) && iy == (2 * ypert[j] - 1)) {
+                    acoeffp[][i] = apertub;
+                } else if(acoeffp[][i] != apertub) {
+                    acoeffp[][i] = amax;
+                }
+            }
+        } else {
+            acoeff[][i] = amin;
+            acoeffp[][i] = amin;
+        }
+
+        // Construction of the source term f (RHS)
+        for (int j = 0; j < xf.n; j++) {
+            if (ix == (2 * xf[j] - 1) && iy == (2 * yf[j] - 1)) {
+                f[][i] = fmax;
+            } else if(f[][i] != fmax) {
+                f[][i] = fmin;
+            }
+        }
+    }
+
+    int nds = 243; // ndslist[k];
+    // Define the computational mesh 
+    mesh Th = square(nds,nds); // generate a triangular mesh of a square domain with nds+1 points per edge
+
+    //**************************************
+    // CODE
+    //**************************************
+
+    fespace VhNC(Th,PP); 
+    VhNC uh,vh;  
+
+    // weak form
+    varf a(uh,vh)=int2d(Th)(acoeff*Grad(uh)'*Grad(vh)) 
+                + int2d(Th)(f*vh) 
+                + on(1,2,3,4,uh=gd);
+
+    // find the FE approximation
+    matrix A=a(VhNC,VhNC,solver=SolverGlob); // construction of the matrix and choice of the linear algebraic solver
+    real[int] b=a(0,VhNC); // construction of the right-hand side
+    uh[]=A^-1*b; // algebraic solve
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////
+
+    VhNC uhp,vhp; 
+
+    varf ap(uhp,vhp)=int2d(Th)(acoeffp*Grad(uhp)'*Grad(vhp)) 
+                + int2d(Th)(f*vhp) 
+                + on(1,2,3,4,uhp=gd);
+
+    matrix Ap=ap(VhNC,VhNC,solver=SolverGlob);
+    real[int] bp=ap(0,VhNC); 
+    uhp[]=Ap^-1*bp; 
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////
+
+    if(PlotSolAppr) {
+        // plot(Th, wait=1, cmm="Square domain & Mesh");
+
+        Vhcb apvis=acoeffp; 
+        real[int]isovaluesapcoeff=em*apvis[].min:(ep*apvis[].max-em*apvis[].min)/(NbIso-1):ep*apvis[].max;
+        plot(Thcb, apvis, wait=1, value=1, fill=1, viso=isovaluesapcoeff, hsv=jet, cmm="Perturbed coefficient", dim=2, boundary=false);
+
+        Vhcb fvis=f; 
+        real[int]isovaluesf=em*fvis[].min:(ep*fvis[].max-em*fvis[].min)/(NbIso-1):ep*fvis[].max;
+        plot(Thcb, fvis, wait=1, value=1, fill=1, viso=isovaluesf, hsv=jet, cmm="RHS", dim=2, boundary=false);
+    }
+
+
+    // space of piecewise constants for various plots
+    fespace Wh0(Th,P1); 
+
+    // computing the exact error and its distribution over mesh elements
+    real error;
+    Wh0 ErrDistField;
+
+    func int ErrDist() {
+        varf ErrDistForm(unused,chiK) = int2d(Th)(
+            chiK*(
+                 // ((Grad(uh)-Grad(uhp))'*(Grad(uh)-Grad(uhp))) // ((Grad(uh))'*(Grad(uh))) //
+                 ((Grad(uh))'*(Grad(uh)))^(32.)
+                )
+            );
+        ErrDistField[]=ErrDistForm(0,Wh0);
+        // error=sqrt(ErrDistField[].sum);
+        error=(ErrDistField[].sum)^(1./64.);
+        ErrDistField=sqrt(ErrDistField);
+        if(PlotErr) {
+            real[int]isovalues=0:ErrDistField[].max/(NbIso-1):ErrDistField[].max; // isovalues from minimal to maximal value
+            plot(Th, ErrDistField, wait=1, value=1, fill=1, viso=isovalues, hsv=jet, cmm="Relative energy errors || grad(uh - uhp) ||"); 
+        }
+        cout<<ncb<<" : "<<error<<endl;
+    }
+
+    if(Err)	ErrDist();
+}

@@ -1,0 +1,1 @@
+export LD_LIBRARY_PATH=/snap/qt513/24/usr/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH
