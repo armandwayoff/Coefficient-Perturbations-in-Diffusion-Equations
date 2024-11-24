@@ -145,14 +145,14 @@ def error(type, uh, u_ex="zero", degree_raise=3):
 def rmse(errors):
     return np.sqrt(np.mean(np.square(errors)))
 
-Nper = 256 # 128  # Nper / H \in 2\N
+Nper = 32 # 128  # Nper / H \in 2\N
 pattern_width = 1 / (Nper - 1)
 # k = 10
 # p = k / (Nper / 2)
 p = 0.1
 amin = 1    
-amax = 5
-h = 1000 # fine mesh
+amax = 50
+h = 2048 # fine mesh
 H = 8  # coarse mesh 
 c = Nper // H
 
@@ -163,7 +163,7 @@ Nsamples = 100
 RMSE_hat = []
 RMSE_star = []
 RMSE_bar = []
-probabilities = np.arange(0.05, 0.5, 0.02) # np.arange(0.3, 0.5, 0.05) # 
+probabilities = np.arange(0.05, 0.3, 0.01) # np.arange(0.05, 0.5, 0.02) #
 num_proba = len(probabilities)
 count = 0
 

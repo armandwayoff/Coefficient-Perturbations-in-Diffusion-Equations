@@ -210,6 +210,8 @@ rel_L2_RMSE_hat_eps256_5_c_50 = [0.23314226478752942, 0.2173565090127846, 0.2120
 rel_L2_RMSE_star_eps256_5_c_50 = [0.2087481067649025, 0.1892325514695361, 0.18121851361819133, 0.1686326447091813, 0.14273562611396928, 0.1384311406533357, 0.13789655081005273, 0.11300343553287584, 0.1037505999650677, 0.09893384589342666, 0.09364152461250792, 0.08390529015628223, 0.07922470895212598, 0.07705171064556494, 0.06807509446986615, 0.0687537744241635, 0.06116050082768883, 0.0643790525774382, 0.06256161565863469, 0.05892418418307222, 0.0564948571532603, 0.06739284234789404, 0.06351144913024744, 0.06349082430370834, 0.06742414067098206]
 rel_L2_RMSE_bar_eps256_5_c_50 = [0.25908975775171195, 0.24851917878136906, 0.24748757626379972, 0.2441316260160094, 0.2322732120165401, 0.23102949669087902, 0.23109724824362993, 0.22203730142257513, 0.2230455848406882, 0.21535896447302144, 0.2180567800084422, 0.2151151172148888, 0.21230813390232112, 0.2193609750962585, 0.2130094409344323, 0.21192689014863025, 0.21202707502575732, 0.21236686315575357, 0.21003004670313244, 0.21180079080726258, 0.21720392662639737, 0.21129640870432254, 0.2195828766182376, 0.21793224522696497, 0.22229061037541245]
 
+###################################################
+
 def calculate_statistics(*arrays):
     max_values = [max(values) for values in zip(*arrays)]
     min_values = [min(values) for values in zip(*arrays)]
@@ -217,15 +219,15 @@ def calculate_statistics(*arrays):
     return max_values, min_values, mean_values
 
 def get_rmse_arrays(prefix, suffix):
-    return [globals()[f"{prefix}_{k}"] for k in suffix]
+    return [globals()[f"{prefix}_{k}_h2048"] for k in suffix]
 
-suffix = range(5, 8)
-# suffix = [2, 5, 10, 50]
+# suffix = range(5, 8)
+suffix = [2, 5, 10, 50]
 
-max_hat, min_hat, mean_hat = calculate_statistics(*get_rmse_arrays("rel_RMSE_hat_eps64", suffix))
-max_star, min_star, mean_star = calculate_statistics(*get_rmse_arrays("rel_RMSE_star_eps64", suffix))
-max_bar, min_bar, mean_bar = calculate_statistics(*get_rmse_arrays("rel_RMSE_bar_eps64", suffix))
-"""
+max_hat, min_hat, mean_hat = calculate_statistics(*get_rmse_arrays("rel_L2_RMSE_hat_eps512_5_c", suffix))
+max_star, min_star, mean_star = calculate_statistics(*get_rmse_arrays("rel_L2_RMSE_star_eps512_5_c", suffix))
+max_bar, min_bar, mean_bar = calculate_statistics(*get_rmse_arrays("rel_L2_RMSE_bar_eps512_5_c", suffix))
+
 print(max_hat)
 print(min_hat)
 print(mean_hat)
@@ -235,7 +237,7 @@ print(mean_star)
 print(max_bar)
 print(min_bar)
 print(mean_bar)
-"""
+
 
 plt.figure(figsize=(5,4)) # 7,4
 
