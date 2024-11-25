@@ -50,8 +50,6 @@ random_values[1::2] = np.random.binomial(1, p, size=(Nper + 1) // 2)
 k = np.sum(random_values)  # number of defects
 
 random_perturbations = np.where(random_values == 1)[0]
-print(k)
-
 breakpoints = np.linspace(0, 1, Nper)
 
 # values_per ##########################
@@ -261,11 +259,13 @@ P6 = diffusionProblem(H, "$\widehat{a}(\omega) = \\frac{\overline{a}_\mathrm{per
 P7 = diffusionProblem(H, "$a^\\ast(\omega) = \overline{a}_\mathrm{per} + p a_1$", 'A_star')
 P8 = diffusionProblem(H, "$\overline{a}(\omega) = \sum_{i=0}^N \mu_i \overline{a}_i$", 'A_bar')
 
+"""
 print("fine", error('L2', P4.uh))
 print("coarse", error('L2', P4.uh, P5.uh))
 print("A_hat",  error('L2', P4.uh, P6.uh))
 print("A_star", error('L2', P4.uh, P7.uh))
 print("A_bar",  error('L2', P4.uh, P8.uh))
+"""
 
 """
 P1.plot_solution()
